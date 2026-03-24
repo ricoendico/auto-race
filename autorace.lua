@@ -1,31 +1,22 @@
--- AUTO RACE PRO (SAFE STYLE)
+-- AUTO CHECKPOINT DETECT + AUTO RACE
 
 local player = game.Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
 local root = char:WaitForChild("HumanoidRootPart")
 
 local running = false
-local speed = 70
-
--- WAYPOINT (EDIT SESUAI MAP!)
-local waypoints = {
-    Vector3.new(0,5,0),
-    Vector3.new(100,5,50),
-    Vector3.new(300,5,200),
-    Vector3.new(600,5,400),
-    Vector3.new(1000,5,800)
-}
+local speed = 75
 
 -- GUI
 local gui = Instance.new("ScreenGui", game.CoreGui)
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0,220,0,150)
+frame.Size = UDim2.new(0,230,0,160)
 frame.Position = UDim2.new(0,20,0,200)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1,0,0,30)
-title.Text = "AUTO RACE PRO"
+title.Text = "AUTO CHECKPOINT PRO"
 title.TextColor3 = Color3.new(1,1,1)
 title.BackgroundColor3 = Color3.fromRGB(40,40,40)
 
@@ -43,34 +34,39 @@ status.Text = "Status: OFF"
 status.TextColor3 = Color3.new(1,1,1)
 status.BackgroundTransparency = 1
 
--- DETEKSI RACE (SIMPLE)
-local function findRacePart()
+-- 🔍 SCAN CHECKPOINT
+local function getCheckpoints()
+    local checkpoints = {}
+
     for _,v in pairs(workspace:GetDescendants()) do
-        if v.Name:lower():find("race") and v:IsA("BasePart") then
-            return v
+        if v:IsA("BasePart") then
+            local name = v.Name:lower()
+            if name:find("checkpoint") or name:find("cp") then
+                table.insert(checkpoints, v)
+            end
         end
     end
+
+    return checkpoints
 end
 
--- AUTO JOIN (natural style)
-local function autoJoinRace()
-    local race = findRacePart()
-    if race then
-        root.CFrame = race.CFrame + Vector3.new(0,3,0)
-        task.wait(2) -- delay biar natural
-    end
+-- 📊 URUTKAN CHECKPOINT (berdasarkan jarak dari player)
+local function sortCheckpoints(list)
+    table.sort(list, function(a, b)
+        return (root.Position - a.Position).Magnitude < (root.Position - b.Position).Magnitude
+    end)
+    return list
 end
 
--- GERAK KE WAYPOINT
+-- 🚗 GERAK
 local function moveTo(target)
-    while running and (root.Position - target).Magnitude > 10 do
+    while running and (root.Position - target).Magnitude > 8 do
         task.wait(0.05)
 
         local direction = (target - root.Position).Unit
 
-        -- smooth movement
-        local currentLook = root.CFrame.LookVector
-        local newDir = currentLook:Lerp(direction, 0.15)
+        -- smooth arah
+        local newDir = root.CFrame.LookVector:Lerp(direction, 0.2)
 
         root.Velocity = newDir * speed
         root.CFrame = CFrame.new(root.Position, root.Position + newDir)
@@ -82,23 +78,33 @@ local function moveTo(target)
     end
 end
 
--- LOOP UTAMA
+-- 🔁 LOOP UTAMA
 task.spawn(function()
     while true do
         task.wait()
 
         if running then
-            status.Text = "Status: JOINING..."
-            autoJoinRace()
+            status.Text = "Scanning checkpoint..."
 
-            status.Text = "Status: RACING..."
-            for _,point in ipairs(waypoints) do
-                if not running then break end
-                moveTo(point)
+            local cps = getCheckpoints()
+            cps = sortCheckpoints(cps)
+
+            if #cps == 0 then
+                status.Text = "Checkpoint not found!"
+                task.wait(3)
+                continue
             end
 
-            status.Text = "Status: FINISH"
-            task.wait(3) -- delay biar nggak spam
+            status.Text = "Racing..."
+
+            for i,cp in ipairs(cps) do
+                if not running then break end
+                status.Text = "Checkpoint "..i.."/"..#cps
+                moveTo(cp.Position + Vector3.new(0,3,0))
+            end
+
+            status.Text = "Finish! Looping..."
+            task.wait(3)
         end
     end
 end)
